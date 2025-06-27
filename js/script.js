@@ -139,41 +139,39 @@ function render() {
   const app = document.getElementById('app');
   app.innerHTML = '';
 
-  // --- Top Bar: Title, Theme Toggle, Export ---
-  const topBar = document.createElement('div');
-  topBar.style.display = 'flex';
-  topBar.style.justifyContent = 'space-between';
-  topBar.style.alignItems = 'center';
-  topBar.style.marginBottom = '1.5rem';
-
-  const title = document.createElement('h1');
-  title.textContent = "Siddu's Wishlist";
-  title.style.fontSize = '2.3rem';
-  title.style.fontWeight = '700';
-  title.style.margin = '0';
-
-  const topActions = document.createElement('div');
-
-  // Theme toggle button
-  const themeBtn = document.createElement('button');
-  themeBtn.textContent = state.theme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode';
-  themeBtn.className = 'add-section-btn';
-  themeBtn.style.marginRight = '0.5rem';
+  // --- Top Right Toolbar (Dark mode, Export JSON, Export PDF) ---
+  let toolbar = document.querySelector('.top-toolbar');
+  if (!toolbar) {
+    toolbar = document.createElement('div');
+    toolbar.className = 'top-toolbar';
+    toolbar.innerHTML = `
+      <button id="theme-toggle-btn" class="toolbar-btn" title="Toggle Dark/Light Mode">🌙</button>
+      <button id="export-btn" class="toolbar-btn" title="Export as JSON">⬇️</button>
+      <button id="pdf-btn" class="toolbar-btn" title="Export as PDF">🗎</button>
+    `;
+    document.body.appendChild(toolbar);
+  }
+  const themeBtn = toolbar.querySelector('#theme-toggle-btn');
+  themeBtn.innerHTML = state.theme === 'light' ? '🌙' : '☀️';
   themeBtn.onclick = toggleTheme;
-  topActions.appendChild(themeBtn);
+  toolbar.querySelector('#export-btn').onclick = exportJSON;
+  toolbar.querySelector('#pdf-btn').onclick = exportPDF;
 
-  // Export button
-  const exportBtn = document.createElement('button');
-  exportBtn.textContent = '⬇️ Export JSON';
-  exportBtn.className = 'add-section-btn';
-  exportBtn.onclick = exportJSON;
-  topActions.appendChild(exportBtn);
+  // --- Hero/Landing Area ---
+  const hero = document.createElement('div');
+  hero.className = 'hero';
+  hero.innerHTML = `
+    <h1>Siddu's Wishlist</h1>
+    <p>A modern, beautiful, and organized way to track everything you want to buy—across phases, sections, and items. Sleek, responsive, and always at your fingertips.</p>
+  `;
+  app.appendChild(hero);
 
-  topBar.appendChild(title);
-  topBar.appendChild(topActions);
-  app.appendChild(topBar);
-
-  // --- Add Phase Button ---
+  // --- Add Phase Button (below hero, left-aligned) ---
+  const addPhaseBtnWrapper = document.createElement('div');
+  addPhaseBtnWrapper.style.width = '100%';
+  addPhaseBtnWrapper.style.display = 'flex';
+  addPhaseBtnWrapper.style.justifyContent = 'flex-start';
+  addPhaseBtnWrapper.style.margin = '1.2rem 0 2.2rem 0';
   const addPhaseBtn = document.createElement('button');
   addPhaseBtn.textContent = '+ Add Phase';
   addPhaseBtn.className = 'add-section-btn';
@@ -191,7 +189,8 @@ function render() {
       }
     });
   };
-  app.appendChild(addPhaseBtn);
+  addPhaseBtnWrapper.appendChild(addPhaseBtn);
+  app.appendChild(addPhaseBtnWrapper);
 
   // --- Phases List (sortable) ---
   const phaseList = document.createElement('div');
@@ -207,16 +206,15 @@ function render() {
 
 // --- Render a Phase (with sections and controls) ---
 function renderPhase(phase, phaseIdx) {
+  // Modern, glassy card for each phase
   const phaseDiv = document.createElement('div');
-  phaseDiv.className = 'section'; // visually similar to section, but larger
-  phaseDiv.style.borderTop = '6px solid #174a8c';
-  phaseDiv.style.background = 'linear-gradient(120deg, #e3f0ff 80%, #c7e0ff 100%)';
+  phaseDiv.className = 'phase-card';
   phaseDiv.setAttribute('draggable', 'true');
   phaseDiv.dataset.phaseId = phase.id;
 
   // --- Phase Header ---
   const header = document.createElement('div');
-  header.className = 'section-header';
+  header.className = 'phase-header';
 
   // Collapsible button
   const collapseBtn = document.createElement('button');
@@ -233,12 +231,10 @@ function renderPhase(phase, phaseIdx) {
   };
   header.appendChild(collapseBtn);
 
-  // Title (editable)
+  // Title (editable, visually distinct)
   const title = document.createElement('span');
-  title.className = 'section-title';
+  title.className = 'phase-title';
   title.textContent = phase.title;
-  title.style.fontSize = '1.5rem';
-  title.style.marginLeft = '0.5rem';
   title.ondblclick = () => {
     showModal({
       title: 'Rename Phase',
@@ -258,7 +254,7 @@ function renderPhase(phase, phaseIdx) {
 
   // Actions (rename, delete, drag)
   const actions = document.createElement('div');
-  actions.className = 'section-actions';
+  actions.className = 'phase-actions';
 
   // Rename button
   const renameBtn = document.createElement('button');
@@ -602,6 +598,35 @@ function exportJSON() {
   a.download = 'wishlist.json';
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// --- Export as PDF ---
+function exportPDF() {
+  // Hide toolbar and modals for clean export
+  const toolbar = document.querySelector('.top-toolbar');
+  const modal = document.getElementById('modal-root');
+  toolbar.style.visibility = 'hidden';
+  if (modal) modal.style.visibility = 'hidden';
+
+  // Use html2canvas to capture the #app content
+  const app = document.getElementById('app');
+  html2canvas(app, {
+    backgroundColor: state.theme === 'dark' ? '#232a3a' : '#f0f9ff',
+    scale: 2,
+    useCORS: true
+  }).then(canvas => {
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    // Calculate width/height for A4
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth - 40;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+    pdf.addImage(imgData, 'PNG', 20, 20, imgWidth, imgHeight, '', 'FAST');
+    pdf.save('wishlist.pdf');
+    toolbar.style.visibility = '';
+    if (modal) modal.style.visibility = '';
+  });
 }
 
 // --- Drag-and-Drop (Sections) ---
